@@ -1,4 +1,4 @@
-use druid::piet::{TextLayout, TextLayoutBuilder};
+use druid::piet::{StrokeStyle, TextLayout, TextLayoutBuilder};
 use druid::{
     kurbo::Line, piet::Text, BoxConstraints, Color, Env, Event, EventCtx, FontFamily, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, UpdateCtx, Widget,
@@ -90,6 +90,68 @@ impl ContainerWidget {
             curve.control_points[i] = self.map_screenspace_to_curvespace(self.drag_pos);
         }
     }
+
+    pub fn render_curve(
+        &mut self,
+        ctx: &mut impl RenderContext,
+        _data: &AppData,
+        curve: &Bezier3,
+        show_controls: bool,
+    ) {
+        // Retrieve curve samples
+        let curve_points = curve.flatten(0.);
+
+        // Convert samples from curve space to screen space
+        let mut screen_points = Vec::new();
+        for p in &curve_points {
+            screen_points.push(self.map_curvespace_to_screenspace(p));
+        }
+
+        // Plot curve by drawing lines between sample points
+        for i in 0..screen_points.len() - 1 {
+            ctx.stroke(
+                Line::new(screen_points[i], screen_points[i + 1]),
+                &Color::TEAL,
+                1.,
+            );
+        }
+
+        if show_controls {
+            // Draw sample points on top of curve
+            for p in screen_points {
+                ctx.fill(Rect::from_center_size(p, Size::new(2., 2.)), &Color::RED);
+            }
+
+            // Draw control quad edges
+            let _hull_stroke_style = StrokeStyle::new().dash_pattern(&[6., 3.]);
+            for i in 0..curve.control_points.len() {
+                let j = if i == curve.control_points.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                };
+                ctx.stroke(
+                    Line::new(
+                        self.map_curvespace_to_screenspace(&curve.control_points[i]),
+                        self.map_curvespace_to_screenspace(&curve.control_points[j]),
+                    ),
+                    &Color::GRAY,
+                    1.,
+                );
+            }
+
+            // Draw control points
+            for p in &curve.control_points {
+                ctx.fill(
+                    Rect::from_center_size(
+                        self.map_curvespace_to_screenspace(p),
+                        Size::new(5., 5.),
+                    ),
+                    &Color::RED,
+                );
+            }
+        }
+    }
 }
 
 impl Widget<AppData> for ContainerWidget {
@@ -104,7 +166,7 @@ impl Widget<AppData> for ContainerWidget {
 
                 // Retrieve the first curve's control points and
                 // convert them to screen space
-                let control_points = data.curves[0]
+                let control_points = data.spline[0]
                     .control_points
                     .iter()
                     .map(|p| self.map_curvespace_to_screenspace(p));
@@ -124,7 +186,7 @@ impl Widget<AppData> for ContainerWidget {
         } else if let Event::MouseMove(m) = event {
             if self.dragging {
                 self.drag_pos = Point::new(m.pos.x, m.pos.y);
-                self.drag_point(&mut data.curves[0]); // TODO: Handle multiple draggable curves
+                self.drag_point(&mut data.spline[0]); // TODO: Handle multiple draggable curves
 
                 repaint = true;
             }
@@ -132,7 +194,7 @@ impl Widget<AppData> for ContainerWidget {
             if m.button.is_left() {
                 // Update drag position in case mouse movement is captured here
                 self.drag_pos = Point::new(m.pos.x, m.pos.y);
-                self.drag_point(&mut data.curves[0]);
+                self.drag_point(&mut data.spline[0]);
 
                 // Clear drag event
                 self.dragging = false;
@@ -259,58 +321,18 @@ impl Widget<AppData> for ContainerWidget {
             ),
         );
 
+        let mut curves = data.spline.clone();
+
+        // Add offset curves
+        curves.push(curves[0].offset_levien(data.offset));
+        curves.push(curves[0].offset_tiller(-data.offset));
+        curves.push(curves[0].offset_klass(-2. * data.offset));
+
         // Plot curves
-        // TODO: Handle multiple curves
-        for curve in &data.curves {
-            // Retrieve curve samples
-            let curve_points = curve.render();
-
-            // Convert samples from curve space to screen space
-            let mut screen_points = Vec::new();
-            for p in &curve_points {
-                screen_points.push(self.map_curvespace_to_screenspace(p));
-            }
-
-            // Plot curve by drawing lines between sample points
-            for i in 0..screen_points.len() - 1 {
-                ctx.stroke(
-                    Line::new(screen_points[i], screen_points[i + 1]),
-                    &Color::TEAL,
-                    1.,
-                );
-            }
-
-            // Draw sample points on top of curve
-            for p in screen_points {
-                ctx.fill(Rect::from_center_size(p, Size::new(2., 2.)), &Color::RED);
-            }
-
-            // Draw control quad edges
-            for i in 0..curve.control_points.len() {
-                let j = if i == curve.control_points.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                };
-                ctx.stroke(
-                    Line::new(
-                        self.map_curvespace_to_screenspace(&curve.control_points[i]),
-                        self.map_curvespace_to_screenspace(&curve.control_points[j]),
-                    ),
-                    &Color::GRAY,
-                    1.,
-                );
-            }
-
-            // Draw control points
-            for p in &curve.control_points {
-                ctx.fill(
-                    Rect::from_center_size(
-                        self.map_curvespace_to_screenspace(p),
-                        Size::new(5., 5.),
-                    ),
-                    &Color::RED,
-                );
+        for curve in curves.iter().enumerate() {
+            match curve.0 {
+                0 => self.render_curve(ctx.render_ctx, data, curve.1, true),
+                _ => self.render_curve(ctx.render_ctx, data, curve.1, false),
             }
         }
     }

@@ -1,25 +1,25 @@
 use druid::{AppLauncher, Rect, WindowDesc};
-
+use preferences::AppInfo;
 mod app_data;
 use app_data::*;
-
 mod container_widget;
 use container_widget::*;
-
+mod app_delegate;
 mod math;
+use app_delegate::Delegate;
+
 use math::{bezier3::Bezier3, vec2::Vec2};
+
+pub const APP_SIG: AppInfo = AppInfo {
+    name: env!("CARGO_PKG_NAME"),
+    author: env!("CARGO_PKG_AUTHORS"),
+};
 
 fn main() {
     let mut data = AppData::new();
 
-    // Create a curve and push it to the AppData instance
-    let points = vec![
-        Vec2::new(0.2, 0.2),
-        Vec2::new(0.1, 0.9),
-        Vec2::new(0.4, 0.4),
-        Vec2::new(0.9, 0.8),
-    ];
-    data.push_curve(Bezier3::new(points));
+    // Set the curve offset distance
+    data.offset = 0.075;
 
     // Set the curvespace viewport
     data.viewport = Rect::new(0., 0., 1., 1.);
@@ -27,6 +27,7 @@ fn main() {
     // Launch the program
     let window = WindowDesc::new(ContainerWidget::new());
     AppLauncher::with_window(window)
+        .delegate(Delegate::new())
         .log_to_console()
         .launch(data)
         .unwrap();

@@ -2,9 +2,12 @@
 name = "curve-explorer"
 version = "0.1.0"
 edition = "2021"
+authors = ["longmathemagician"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 # gnuplot = "0.0.37"
 druid = { git = "https://github.com/linebender/druid.git" }
+serde = { version = "0.9", features = ["derive"] }
+preferences = "1.1.0"

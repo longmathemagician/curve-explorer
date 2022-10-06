@@ -2,7 +2,11 @@ use crate::math::real::Real;
 use std::fmt;
 use std::ops::*;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+pub const _ZERO: Vec2<f32> = Vec2::new(0., 0.);
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Vec2<T> {
     pub x: T,
     pub y: T,
@@ -12,6 +16,19 @@ impl<T: Real> Vec2<T> {
     pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
+
+    pub const ZERO: Vec2<f32> = Vec2::new(0., 0.);
+
+    pub fn normalize(&self) -> Self {
+        let magnitude = self.mag();
+
+        *self / magnitude
+    }
+
+    pub fn normal(&self) -> Self {
+        Vec2::new(-self.y, self.x)
+    }
+
     // Return the Euclidean norm of the vector
     // TODO: Runtime type checking?
     pub fn mag(&self) -> T {
@@ -138,7 +155,7 @@ where
     }
 }
 
-// Scalar multiplication: Vec2<T> * T -> Vec2<T>
+// Scalar multiplication: Vec2<T> * T -> Vec2<T> where T: Real
 impl<T> Mul<T> for Vec2<T>
 where
     T: Real,
@@ -148,6 +165,18 @@ where
         Vec2 {
             x: self.x * rhs,
             y: self.y * rhs,
+        }
+    }
+}
+
+// Scalar multiplication: Vec2<f32> * rhs: usize -> Vec2<f32>
+impl Mul<usize> for Vec2<f32> {
+    type Output = Vec2<f32>;
+    fn mul(self, rhs: usize) -> Vec2<f32> {
+        let scalar = rhs as f32;
+        Vec2 {
+            x: self.x * scalar,
+            y: self.y * scalar,
         }
     }
 }
@@ -162,6 +191,21 @@ where
         Vec2 {
             x: rhs.x * T::from(self),
             y: rhs.y * T::from(self),
+        }
+    }
+}
+
+// Scalar multiplication: U * Vec2<T> -> Vec2<T> where T: Real, U: usize
+impl<T> Mul<Vec2<T>> for usize
+where
+    T: Real,
+{
+    type Output = Vec2<T>;
+    fn mul(self, rhs: Vec2<T>) -> Vec2<T> {
+        let scalar = T::from(self as f32);
+        Vec2 {
+            x: rhs.x * scalar,
+            y: rhs.y * scalar,
         }
     }
 }
