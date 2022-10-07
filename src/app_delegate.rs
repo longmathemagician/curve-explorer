@@ -18,9 +18,9 @@ impl AppDelegate<AppData> for Delegate {
         _env: &Env,
         _ctx: &mut DelegateCtx,
     ) {
-        let save_result = data.spline.save(&APP_SIG, "saved_spline");
-        if !save_result.is_ok() {
-            println!("Error saving current spline: {:?}", save_result);
-        }
+        // let save_result = data.spline.save(&APP_SIG, "saved_spline");
+        // if !save_result.is_ok() {
+        //     println!("Error saving current spline: {:?}", save_result);
+        // }
     }
 }

@@ -1,3 +1,5 @@
+#![feature(generic_const_exprs)]
+
 use druid::{AppLauncher, Rect, WindowDesc};
 use preferences::AppInfo;
 mod app_data;
@@ -7,8 +9,6 @@ use container_widget::*;
 mod app_delegate;
 mod math;
 use app_delegate::Delegate;
-
-use math::{bezier3::Bezier3, vec2::Vec2};
 
 pub const APP_SIG: AppInfo = AppInfo {
     name: env!("CARGO_PKG_NAME"),

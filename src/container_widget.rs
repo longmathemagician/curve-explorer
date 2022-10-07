@@ -5,9 +5,8 @@ use druid::{
 };
 
 use crate::app_data::AppData;
-use crate::math::bezier3::Bezier3;
-use crate::math::vec2::Vec2;
-
+use crate::math::bezier::Bezier;
+use crate::math::vector::Vector;
 pub struct ContainerWidget {
     canvas_rect: Rect,
     canvas_viewport_screen: Rect,
@@ -32,62 +31,57 @@ impl ContainerWidget {
     }
 
     fn map_range(
-        num: f32,
-        domain_min: f32,
-        domain_max: f32,
-        range_min: f32,
-        range_max: f32,
-    ) -> f32 {
+        num: f64,
+        domain_min: f64,
+        domain_max: f64,
+        range_min: f64,
+        range_max: f64,
+    ) -> f64 {
         (num - domain_min) * (range_max - range_min) / (domain_max - domain_min) + range_min
     }
 
-    pub fn map_curvespace_to_screenspace(&self, source_vec: &Vec2<f32>) -> Point {
+    pub fn map_curvespace_to_screenspace(&self, source_vec: &Vector<2>) -> Point {
         Point::new(
             ContainerWidget::map_range(
-                source_vec.x,
-                self.canvas_viewport_curve.x0 as f32,
-                self.canvas_viewport_curve.x1 as f32,
-                self.canvas_viewport_screen.x0 as f32,
-                self.canvas_viewport_screen.x1 as f32,
+                source_vec.b[0],
+                self.canvas_viewport_curve.x0,
+                self.canvas_viewport_curve.x1,
+                self.canvas_viewport_screen.x0,
+                self.canvas_viewport_screen.x1,
             )
             .into(),
             ContainerWidget::map_range(
-                source_vec.y,
-                self.canvas_viewport_curve.y0 as f32,
-                self.canvas_viewport_curve.y1 as f32,
-                self.canvas_viewport_screen.y1 as f32,
-                self.canvas_viewport_screen.y0 as f32,
-            )
-            .into(),
-        )
-    }
-
-    pub fn map_screenspace_to_curvespace(&self, source_point: Point) -> Vec2<f32> {
-        Vec2::new(
-            ContainerWidget::map_range(
-                source_point.x as f32,
-                (self.canvas_rect.x0 - (self.canvas_rect.x0 - self.canvas_viewport_screen.x0))
-                    as f32,
-                (self.canvas_rect.x1 - (self.canvas_rect.x1 - self.canvas_viewport_screen.x1))
-                    as f32,
-                self.canvas_viewport_curve.x0 as f32,
-                self.canvas_viewport_curve.x1 as f32,
-            ),
-            ContainerWidget::map_range(
-                source_point.y as f32,
-                (self.canvas_rect.y0 - (self.canvas_rect.y0 - self.canvas_viewport_screen.y0))
-                    as f32,
-                (self.canvas_rect.y1 - (self.canvas_rect.y1 - self.canvas_viewport_screen.y1))
-                    as f32,
-                self.canvas_viewport_curve.y1 as f32,
-                self.canvas_viewport_curve.y0 as f32,
+                source_vec.b[1],
+                self.canvas_viewport_curve.y0,
+                self.canvas_viewport_curve.y1,
+                self.canvas_viewport_screen.y1,
+                self.canvas_viewport_screen.y0,
             ),
         )
     }
 
-    pub fn drag_point(&mut self, curve: &mut Bezier3) {
+    pub fn map_screenspace_to_curvespace(&self, source_point: Point) -> Vector<2> {
+        Vector::<2>::new([
+            ContainerWidget::map_range(
+                source_point.x,
+                self.canvas_rect.x0 - (self.canvas_rect.x0 - self.canvas_viewport_screen.x0),
+                self.canvas_rect.x1 - (self.canvas_rect.x1 - self.canvas_viewport_screen.x1),
+                self.canvas_viewport_curve.x0,
+                self.canvas_viewport_curve.x1,
+            ),
+            ContainerWidget::map_range(
+                source_point.y,
+                self.canvas_rect.y0 - (self.canvas_rect.y0 - self.canvas_viewport_screen.y0),
+                self.canvas_rect.y1 - (self.canvas_rect.y1 - self.canvas_viewport_screen.y1),
+                self.canvas_viewport_curve.y1,
+                self.canvas_viewport_curve.y0,
+            ),
+        ])
+    }
+
+    pub fn drag_point(&mut self, curve: &mut Bezier<3>) {
         if let Some(i) = self.drag_object {
-            curve.control_points[i] = self.map_screenspace_to_curvespace(self.drag_pos);
+            curve.p[i] = self.map_screenspace_to_curvespace(self.drag_pos);
         }
     }
 
@@ -95,7 +89,7 @@ impl ContainerWidget {
         &mut self,
         ctx: &mut impl RenderContext,
         _data: &AppData,
-        curve: &Bezier3,
+        curve: &Bezier<3>,
         show_controls: bool,
     ) {
         // Retrieve curve samples
@@ -123,25 +117,24 @@ impl ContainerWidget {
             }
 
             // Draw control quad edges
-            let _hull_stroke_style = StrokeStyle::new().dash_pattern(&[6., 3.]);
-            for i in 0..curve.control_points.len() {
-                let j = if i == curve.control_points.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                };
-                ctx.stroke(
+            let hull_stroke_style = StrokeStyle::new().dash_pattern(&[6., 3.]);
+            let hulligon = curve.convex_hull();
+            let n = hulligon.len();
+            for i in 0..n {
+                let j = if i == n - 1 { 0 } else { i + 1 };
+                ctx.stroke_styled(
                     Line::new(
-                        self.map_curvespace_to_screenspace(&curve.control_points[i]),
-                        self.map_curvespace_to_screenspace(&curve.control_points[j]),
+                        self.map_curvespace_to_screenspace(&hulligon[i]),
+                        self.map_curvespace_to_screenspace(&hulligon[j]),
                     ),
                     &Color::GRAY,
                     1.,
+                    &hull_stroke_style,
                 );
             }
 
             // Draw control points
-            for p in &curve.control_points {
+            for p in &curve.p {
                 ctx.fill(
                     Rect::from_center_size(
                         self.map_curvespace_to_screenspace(p),
@@ -167,7 +160,7 @@ impl Widget<AppData> for ContainerWidget {
                 // Retrieve the first curve's control points and
                 // convert them to screen space
                 let control_points = data.spline[0]
-                    .control_points
+                    .p
                     .iter()
                     .map(|p| self.map_curvespace_to_screenspace(p));
 
@@ -324,9 +317,9 @@ impl Widget<AppData> for ContainerWidget {
         let mut curves = data.spline.clone();
 
         // Add offset curves
-        curves.push(curves[0].offset_levien(data.offset));
-        curves.push(curves[0].offset_tiller(-data.offset));
-        curves.push(curves[0].offset_klass(-2. * data.offset));
+        // curves.push(curves[0].offset_levien(data.offset));
+        // curves.push(curves[0].offset_tiller(-data.offset));
+        // curves.push(curves[0].offset_klass(data.offset));
 
         // Plot curves
         for curve in curves.iter().enumerate() {
