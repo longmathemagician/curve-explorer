@@ -1,7 +1,7 @@
 use std::num::FpCategory;
 
-/// Returns a specifid-width string representation of the provided f64.
-/// The minimum width is 3, but this may panic with overflow for widths
+/// Returns a specified-width string representation of the provided f64.
+/// The absolute minimum width is 3, but this may panic with overflow for widths
 /// under 7.
 pub fn format_f64(n: f64, width: usize) -> String {
     assert!(width >= 3);
@@ -36,7 +36,7 @@ pub fn format_f64(n: f64, width: usize) -> String {
             formatting_width += exp_wdh; // TODO: use int_log when stable
         }
 
-        // TODO: Check trailing zeros and compact if possible
+        // TODO: Check trailing zeros and compact when possible
         if !has_exponent {
             output.push_str(&format!("{:.w$}", n_abs, w = width - formatting_width));
         } else {

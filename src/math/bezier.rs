@@ -1,5 +1,10 @@
 use super::vector::Vector;
 
+// non-functional attempt to allow specialization
+// pub struct GenericSizeCheck<const B: bool>;
+// pub trait Passed {}
+// impl Passed for GenericSizeCheck<true> {}
+
 #[derive(Clone)]
 pub struct Bezier<const N: usize>
 where
@@ -20,6 +25,8 @@ where
     /// Returns an oriented convex hull for the curve.
     pub fn convex_hull(&self) -> [Vector<2>; N + 1] {
         // Jarvis march-ish algorithm, probably in its worst-case scenario
+
+        // TODO: Handle degenerate case where returned polygon is not convex
 
         // Find a corner point (bottom left in this case)
         let mut i_start = 0;
@@ -66,44 +73,57 @@ where
         hull
     }
 
-    pub fn get_point(&self, t: f64) -> Vector<2> {
+    fn get_point(&self, t: f64) -> Vector<2> {
+        match N {
+            3 => self.get_point_cubic(t),
+            _ => self.get_point_generic(t),
+        }
+    }
+
+    #[inline]
+    fn get_point_cubic(&self, _t: f64) -> Vector<2> {
+        todo!()
+    }
+
+    #[inline]
+    fn get_point_generic(&self, t: f64) -> Vector<2> {
         let mut point: Vector<2> = Vector::new([0., 0.]);
+        let mut bernstein: f64;
         for i in 0..N + 1 {
-            let poly = self.bernstein_polynomial(t, i);
-            point.b[0] += self.p[i].b[0] * poly;
-            point.b[1] += self.p[i].b[1] * poly;
+            bernstein =
+                self.binomial(N, i) as f64 * t.powi(i as i32) * (1.0 - t).powi((N - i) as i32);
+            point.b[0] += self.p[i].b[0] * bernstein;
+            point.b[1] += self.p[i].b[1] * bernstein;
         }
         point
     }
 
-    fn bernstein_polynomial(&self, t: f64, i: usize) -> f64 {
-        self.binomial_coefficient(i) * t.powi(i as i32) * (1.0 - t).powi((N - i) as i32)
-    }
-
-    fn binomial_coefficient(&self, k: usize) -> f64 {
-        let mut result = 1.;
-        let n_f = (N + 1) as f64;
-        for i in 1..k + 1 {
-            result *= (i as f64).recip() * n_f - 1.;
+    #[inline]
+    fn binomial(&self, n: usize, k: usize) -> usize {
+        if k == 0 {
+            return 1;
         }
-        result
-    }
-
-    pub fn start_tangent(&self) -> Vector<2> {
-        assert_eq!(N, 3); // For cubic beziers only
-        3. * (self.p[1] - self.p[0])
-    }
-
-    pub fn end_tangent(&self) -> Vector<2> {
-        assert_eq!(N, 3);
-        3. * (self.p[3] - self.p[2])
+        let mut a = 1;
+        let mut b = 1;
+        let c = k.min(n - k);
+        for i in 0..c {
+            a *= n - c + (i + 1);
+            b *= i + 1;
+        }
+        a / b
     }
 
     pub fn first_derivative(&self, t: f64) -> Vector<2> {
         assert_eq!(N, 3);
-        3. * (1. - t).powi(2) * (self.p[1] - self.p[0])
-            + 6. * (1. - t) * t * (self.p[2] - self.p[1])
-            + 3. * t.powi(2) * (self.p[3] - self.p[2])
+        if t == 0. {
+            3. * (self.p[1] - self.p[0])
+        } else if t == 1. {
+            3. * (self.p[3] - self.p[2])
+        } else {
+            3. * (1. - t).powi(2) * (self.p[1] - self.p[0])
+                + 6. * (1. - t) * t * (self.p[2] - self.p[1])
+                + 3. * t.powi(2) * (self.p[3] - self.p[2])
+        }
     }
 
     pub fn second_derivative(&self, t: f64) -> Vector<2> {
